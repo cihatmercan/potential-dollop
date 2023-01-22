@@ -1,0 +1,168 @@
+### With Rule-Based Classification Return on Lead Calculation
+
+# A gaming company wants to create level-based personas using some characteristics of its customers, create segments based
+# on these new customer personas, and estimate how much new customers can earn the company on average. 
+# For example: We want to determine how much a 25-year-old male IOS user from Turkey can earn on average.
+
+## Task 1: Answer the following questions
+
+# Question 1: Read the persona.csv file and show general information about the dataset.
+# The Persona.csv dataset contains the prices of products sold by an international gaming company and some 
+# demographic information of the users who purchased these products. 
+# The dataset consists of records of each sales transaction. This means that the table is not deduplicated. 
+# In other words, a user with certain demographic characteristics may have made more than one purchase.
+
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+df = pd.read_csv("Datasets/persona.csv")
+df.head()
+
+df.info()
+
+# Question 2: How many unique SOURCEs are there? What is their frequency?
+
+df["SOURCE"].nunique()
+
+df["SOURCE"].value_counts()
+
+# Question 3: How many unique PRICE are there?
+
+df["PRICE"].nunique()
+
+# Question 4: How many sales were realized from which PRICE?
+
+df["PRICE"].value_counts()
+
+# Question 5: How many sales were there from which country?
+
+df["COUNTRY"].value_counts()
+
+# Question 6: How much was earned from sales by country?
+
+df.groupby("COUNTRY")["PRICE"].sum()
+# The same expression can also be written as follows
+df.groupby("COUNTRY").agg({"PRICE": sum})
+
+# Question 7: What is the number of sales by SOURCE types?
+
+df["SOURCE"].value_counts()
+
+# Question 8: What is the average PRICE by country?
+
+df.groupby("COUNTRY")["PRICE"].mean()
+# The same expression can also be written as follows
+#df.groupby("COUNTRY").agg({"PRICE": "mean"})
+
+# Question 9: What is the average PRICE by SOURCE?
+
+df.groupby("SOURCE")["PRICE"].mean()
+
+# Question 10: What are the PRICE averages in the COUNTRY-SOURCE breakdown?
+
+df.groupby(["COUNTRY", "SOURCE"])["PRICE"].mean()
+
+## Task 2: What are the average earnings by COUNTRY, SOURCE, SEX, AGE?
+
+df.groupby(["COUNTRY", "SOURCE", "SEX", "AGE"])["PRICE"].mean()
+# The same expression can also be written as follows
+df.groupby(["COUNTRY", "SOURCE", "SEX", "AGE"]).agg({"PRICE": "mean"})
+
+# To see the output from the previous question better, apply the sort_values method in descending order according to PRICE.
+
+agg_df = df.groupby(["COUNTRY", "SOURCE", "SEX", "AGE"]).agg({"PRICE": "mean"})
+agg_df.sort_values("PRICE", ascending=False)
+
+# All variables in the output of the third question except PRICE are index names. Convert these names to variable names.
+
+# normally the index is country, we add a numeric index here
+agg_df = agg_df.reset_index()
+agg_df.head()
+
+## Task 3: Convert age into a categorical variable and add it to agg_df.
+
+# Convert the numeric variable Age to a categorical variable.
+
+agg_df["AGE"].describe()
+
+# Let's determine where to divide the variable AGE
+bins = [0, 18, 23, 30, 40, agg_df["AGE"].max()]
+
+# Let's define what the names will be for the dividing points
+mylabels = ["0_18", "19_23", "24_30", "31_40", "41_" + str(agg_df["AGE"].max())]
+
+agg_df["AGE_CAT"] = pd.cut(agg_df["AGE"], bins, labels=mylabels)
+agg_df.head()
+
+agg_df.sort_values("PRICE", ascending=False)
+
+## Task 4: Define new level-based customers (persona).
+
+# Define new level based customers (persona) and add them as a variable to the dataset.
+# Name of the new variable: customers_level_based
+# We need to create the variable customers_level_based by combining the observations in the output from the previous question.
+# Attention! After creating customers_level_based values with list comprehension, these values must be singularized.
+# For example, there can be more than one of the following expressions: USA_ANDROID_MALE_0_18. We need to groupby them and average their prices.
+
+agg_df.columns
+
+cus_level_based = ["_".join([x for x in [agg_df.loc[row,col] for col in 
+                                          ['COUNTRY','SOURCE','SEX', 'AGE_CAT']]]) 
+                                           for row in range(len(agg_df))]
+cus_level_based
+
+# we can do the same process as above in the following two cells
+for row in agg_df.values:
+    print(row)
+
+cus_level_based=[row[0].upper() + "_" + row[1].upper() + "_" + row[2].upper() + "_" + row[5].upper() for row in agg_df.values]
+
+agg_df['CUS_LEVEL_BASED'] = cus_level_based
+agg_df.sort_values("PRICE", ascending=False)
+
+agg_df = agg_df[["CUS_LEVEL_BASED", "PRICE"]]
+agg_df.head()
+
+# we reserved CUS_LEVEL_BASED for the next step
+for i in agg_df["CUS_LEVEL_BASED"].values:
+    print(i.split("_"))
+
+# For example, there are 7 of the USA_ANDROID_MALE_24_30 personas, we must deduplicate them
+agg_df["CUS_LEVEL_BASED"].value_counts()
+
+# We're looking at the average of each persona
+# for example, the persona BRA_ANDROID_FEMALE_0_18 has multiple personas and averages $35.64 
+# we make groupby to select each persona and show its average
+agg_df = agg_df.groupby("CUS_LEVEL_BASED").agg({"PRICE": "mean"})
+agg_df = agg_df.reset_index()
+agg_df.head()
+
+# we see that our deduplication is successful, there is one of each persona
+agg_df["CUS_LEVEL_BASED"].value_counts()
+
+## Task 5: Segment new customers (personas).
+    
+# Divide new customers (Example: USA_ANDROID_MALE_0_18) into 4 segments according to PRICE.
+# Add the segments to agg_df as a variable with SEGMENT naming.
+# Describe the segments (group by segments and get price mean, max, sum).
+
+agg_df["SEGMENT"] = pd.qcut(agg_df["PRICE"], q=4, labels=['D', 'C', 'B', "A"])
+agg_df.head()
+
+func = ["mean", "max", "sum"]
+agg_df.groupby("SEGMENT").agg(func)
+
+## Task 6: Categorize new customers and estimate how much revenue they can generate.
+
+# Which segment does a 33-year-old Turkish woman using ANDROID belong to and how much income is she expected to earn on average?
+
+new_user = "TUR_ANDROID_FEMALE_31_40"
+agg_df[agg_df["CUS_LEVEL_BASED"] == new_user]
+
+# Which segment does a 35-year-old French woman using IOS belong to and how much income can she be expected to earn on average?
+
+new_user = "FRA_IOS_FEMALE_31_40"
+agg_df[agg_df["CUS_LEVEL_BASED"] == new_user]
+
